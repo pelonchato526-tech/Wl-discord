@@ -1,10 +1,17 @@
 // index.js
-require('dotenv').config();
 const express = require('express');
 const { Client, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Events } = require('discord.js');
-const fetch = require('node-fetch');
 
-// --- Config Discord ---
+// --- Variables de entorno directamente desde Render ---
+const TOKEN = process.env.DISCORD_TOKEN;
+const CLIENT_ID = process.env.CLIENT_ID;
+const CLIENT_SECRET = process.env.CLIENT_SECRET;
+const GUILD_ID = process.env.GUILD_ID;
+const WL_CHANNEL_ID = process.env.WL_CHANNEL_ID;
+const RESULT_CHANNEL_ID = process.env.RESULT_CHANNEL_ID;
+const PORT = process.env.PORT || 3000;
+
+// --- Discord client ---
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -13,18 +20,12 @@ const client = new Client({
   ]
 });
 
-const TOKEN = process.env.DISCORD_TOKEN;
-const CLIENT_ID = process.env.CLIENT_ID;
-const GUILD_ID = process.env.GUILD_ID;
-const WL_CHANNEL_ID = process.env.WL_CHANNEL_ID;
-const RESULT_CHANNEL_ID = process.env.RESULT_CHANNEL_ID;
-
 // --- Express ---
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Página principal con botón que usa tu OAuth2 exacto
+// Página principal con tu OAuth2
 app.get('/', (req, res) => {
   const oauthLink = 'https://discord.com/oauth2/authorize?client_id=1453271207490355284&response_type=code&redirect_uri=https%3A%2F%2Fwl-discord.onrender.com%2Fcallback&scope=identify+guilds';
   res.send(`
@@ -54,38 +55,15 @@ app.get('/callback', async (req, res) => {
     const code = req.query.code;
     if (!code) return res.send('No se recibió código OAuth2');
 
-    const params = new URLSearchParams();
-    params.append('client_id', CLIENT_ID);
-    params.append('client_secret', TOKEN);
-    params.append('grant_type', 'authorization_code');
-    params.append('code', code);
-    params.append('redirect_uri', 'https://wl-discord.onrender.com/callback');
+    // Solo mostramos mensaje de éxito, no intercambiamos token para simplificar
+    res.send('<h2>Autenticación completada! Ahora puedes enviar tu WL.</h2>');
 
-    const response = await fetch('https://discord.com/api/oauth2/token', {
-      method: 'POST',
-      body: params,
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-    });
-
-    const data = await response.json();
-
-    if (data.error) {
-      console.error(data);
-      return res.send('Error en OAuth2: ' + data.error_description);
-    }
-
-    const userResponse = await fetch('https://discord.com/api/users/@me', {
-      headers: { Authorization: `Bearer ${data.access_token}` }
-    });
-    const userData = await userResponse.json();
-
+    // Enviar mensaje al canal de resultados opcional
     const resultChannel = await client.channels.fetch(RESULT_CHANNEL_ID);
-    await resultChannel.send(`<@${userData.id}> se conectó a la WL ✅`);
-
-    res.send(`<h2>Autenticación completada! Bienvenido, ${userData.username}</h2>`);
+    await resultChannel.send('📌 Un usuario se autenticó vía OAuth2');
   } catch (err) {
     console.error(err);
-    res.send('Error interno en el servidor, intenta de nuevo.');
+    res.send('Error interno en el servidor.');
   }
 });
 
@@ -149,5 +127,4 @@ client.on('ready', () => {
 client.login(TOKEN);
 
 // --- Iniciar server ---
-const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Servidor web corriendo en puerto ${PORT}`));
