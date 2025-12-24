@@ -33,7 +33,7 @@ app.get("/", (req, res) => {
 // ----------------- LOGIN DISCORD -----------------
 app.get("/login", (req, res) => {
   const redirect = 
-    "https://discord.com/api/oauth2/authorize" +
+    "https://discord.com/oauth2/authorize?client_id=1453271207490355284&response_type=code&redirect_uri=https%3A%2F%2Fdiscord.com%2Fapi%2Foauth2%2Fauthorize&scope=identify+guilds" +
     `?client_id=${CLIENT_ID}` +
     "&response_type=code" +
     "&scope=identify" +
