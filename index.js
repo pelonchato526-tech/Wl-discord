@@ -5,21 +5,21 @@ const { Client, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle,
 
 const TOKEN = process.env.DISCORD_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
-const CLIENT_SECRET = process.env.CLIENT_SECRET; // Asegúrate de tenerlo en Render
+const CLIENT_SECRET = process.env.CLIENT_SECRET; // Obligatorio para OAuth2
 const GUILD_ID = process.env.GUILD_ID;
 const WL_CHANNEL_ID = process.env.WL_CHANNEL_ID;
 const RESULT_CHANNEL_ID = process.env.RESULT_CHANNEL_ID;
 const PORT = process.env.PORT || 3000;
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
-
 const app = express();
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static('public')); // Para logo.png
+app.use(express.static('public')); // Aquí irá logo.png
 
-// Página principal
-app.get('/', (req, res) => {
+// --- Página principal ---
+app.get('/', (req,res)=>{
   const oauthLink = `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&response_type=code&redirect_uri=https%3A%2F%2Fwl-discord.onrender.com%2Fcallback&scope=identify+guilds`;
   res.send(`
     <html>
@@ -42,13 +42,12 @@ app.get('/', (req, res) => {
   `);
 });
 
-// Callback OAuth2 y formulario
-app.get('/callback', async (req, res) => {
+// --- Callback OAuth2 ---
+app.get('/callback', async (req,res)=>{
   try {
     const code = req.query.code;
     if(!code) return res.send("No se recibió código OAuth2");
 
-    // Obtener access token
     const params = new URLSearchParams();
     params.append('client_id', CLIENT_ID);
     params.append('client_secret', CLIENT_SECRET);
@@ -56,23 +55,22 @@ app.get('/callback', async (req, res) => {
     params.append('code', code);
     params.append('redirect_uri','https://wl-discord.onrender.com/callback');
 
-    const tokenRes = await fetch('https://discord.com/api/oauth2/token', {
-      method: 'POST',
+    const tokenRes = await fetch('https://discord.com/api/oauth2/token',{
+      method:'POST',
       body: params,
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      headers:{ 'Content-Type':'application/x-www-form-urlencoded' }
     });
     const tokenData = await tokenRes.json();
-
     if(tokenData.error) return res.send(`Error OAuth2: ${tokenData.error_description}`);
 
-    // Obtener info del usuario
-    const userRes = await fetch('https://discord.com/api/users/@me', {
-      headers: { Authorization: `Bearer ${tokenData.access_token}` }
+    const userRes = await fetch('https://discord.com/api/users/@me',{
+      headers:{ Authorization: `Bearer ${tokenData.access_token}` }
     });
     const userData = await userRes.json();
     const discordId = userData.id;
     const username = userData.username;
 
+    // Formulario WL
     const preguntas = [
       "Nombre completo en Discord",
       "Edad",
@@ -143,13 +141,13 @@ app.get('/callback', async (req, res) => {
       </html>
     `);
 
-  } catch(err) {
+  } catch(err){
     console.error(err);
     res.send("Error interno");
   }
 });
 
-// Endpoint WL-form
+// --- Endpoint WL-form ---
 app.post('/wl-form', async (req,res)=>{
   try {
     const { discordId,respuestas } = req.body;
@@ -164,7 +162,7 @@ app.post('/wl-form', async (req,res)=>{
       .setTitle('📄 Nueva WL enviada')
       .setDescription(respuestas)
       .setColor('#FFD700')
-      .setThumbnail('https://i.imgur.com/tuLogo.png'); // Cambia por tu logo
+      .setThumbnail('https://i.imgur.com/tuLogo.png'); // Cambia por tu logo real
 
     const row = new ActionRowBuilder()
       .addComponents(
@@ -175,14 +173,14 @@ app.post('/wl-form', async (req,res)=>{
     await wlChannel.send({ embeds:[embed], components:[row] });
     res.json({ status:'ok' });
 
-  } catch(err) {
+  } catch(err){
     console.error(err);
     res.status(500).json({ error:'Error interno' });
   }
 });
 
-// Bot botones
-client.on(Events.InteractionCreate, async interaction => {
+// --- Bot botones ---
+client.on(Events.InteractionCreate, async interaction=>{
   if(!interaction.isButton()) return;
   const resultChannel = await client.channels.fetch(RESULT_CHANNEL_ID);
   const [action, discordId] = interaction.customId.split('_');
@@ -197,9 +195,9 @@ client.on(Events.InteractionCreate, async interaction => {
   await interaction.update({ content: action==='accept'?'✅ WL aceptada':'❌ WL rechazada', components:[], embeds:interaction.message.embeds });
 });
 
-// Bot listo
+// --- Bot listo ---
 client.on('ready', ()=>console.log(`Bot listo! ${client.user.tag}`));
 client.login(TOKEN);
 
-// Servidor
+// --- Servidor ---
 app.listen(PORT, ()=>console.log(`Servidor corriendo en puerto ${PORT}`));
