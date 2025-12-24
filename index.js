@@ -1,10 +1,10 @@
 // index.js
 require('dotenv').config();
 const express = require('express');
-const fetch = require('node-fetch'); // Si Node <18
-const { Client, GatewayIntentBits } = require('discord.js');
+const { Client, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Events } = require('discord.js');
+const fetch = require('node-fetch');
 
-// --- Config Discord desde variables de entorno ---
+// --- Config Discord ---
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -24,8 +24,9 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Página principal bonita
+// Página principal con botón que usa tu OAuth2 exacto
 app.get('/', (req, res) => {
+  const oauthLink = 'https://discord.com/oauth2/authorize?client_id=1453271207490355284&response_type=code&redirect_uri=https%3A%2F%2Fwl-discord.onrender.com%2Fcallback&scope=identify+guilds';
   res.send(`
     <html>
       <head>
@@ -39,7 +40,7 @@ app.get('/', (req, res) => {
       </head>
       <body>
         <h1>Bienvenido a la WL de Discord</h1>
-        <a href="https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent('https://wl-discord.onrender.com/callback')}&scope=identify+guilds">
+        <a href="${oauthLink}">
           <button>Conectar con Discord</button>
         </a>
       </body>
@@ -73,13 +74,11 @@ app.get('/callback', async (req, res) => {
       return res.send('Error en OAuth2: ' + data.error_description);
     }
 
-    // Obtener info del usuario
     const userResponse = await fetch('https://discord.com/api/users/@me', {
       headers: { Authorization: `Bearer ${data.access_token}` }
     });
     const userData = await userResponse.json();
 
-    // Mandar mensaje al canal de resultados
     const resultChannel = await client.channels.fetch(RESULT_CHANNEL_ID);
     await resultChannel.send(`<@${userData.id}> se conectó a la WL ✅`);
 
@@ -94,14 +93,31 @@ app.get('/callback', async (req, res) => {
 app.post('/wl-form', async (req, res) => {
   try {
     const { discordId, respuestas } = req.body;
-    if (!discordId) return res.status(400).json({ error: 'Falta discordId' });
+    if (!discordId || !respuestas) return res.status(400).json({ error: 'Faltan datos' });
 
-    // Lógica de aceptación (personalizable)
-    const aceptado = true;
+    const wlChannel = await client.channels.fetch(WL_CHANNEL_ID);
 
-    const resultChannel = await client.channels.fetch(RESULT_CHANNEL_ID);
-    await resultChannel.send(`<@${discordId}> fue ${aceptado ? 'aceptado' : 'rechazado'}`);
+    // Embed con respuestas
+    const embed = new EmbedBuilder()
+      .setTitle('📄 Nueva WL enviada')
+      .setDescription(respuestas)
+      .setFooter({ text: `Usuario: ${discordId}` })
+      .setColor('#7289da');
 
+    // Botones Aceptar / Rechazar
+    const row = new ActionRowBuilder()
+      .addComponents(
+        new ButtonBuilder()
+          .setCustomId(`accept_${discordId}`)
+          .setLabel('✅ Aceptar')
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId(`reject_${discordId}`)
+          .setLabel('❌ Rechazar')
+          .setStyle(ButtonStyle.Danger)
+      );
+
+    await wlChannel.send({ embeds: [embed], components: [row] });
     res.json({ status: 'ok' });
   } catch (err) {
     console.error(err);
@@ -109,26 +125,29 @@ app.post('/wl-form', async (req, res) => {
   }
 });
 
-// --- Discord bot ---
+// --- Bot escucha interacción de botones ---
+client.on(Events.InteractionCreate, async interaction => {
+  if (!interaction.isButton()) return;
+
+  const resultChannel = await client.channels.fetch(RESULT_CHANNEL_ID);
+  const [action, discordId] = interaction.customId.split('_');
+
+  if (action === 'accept') {
+    await resultChannel.send(`<@${discordId}> fue ✅ Aceptado`);
+    await interaction.update({ content: '✅ WL aceptada', components: [], embeds: interaction.message.embeds });
+  } else if (action === 'reject') {
+    await resultChannel.send(`<@${discordId}> fue ❌ Rechazado`);
+    await interaction.update({ content: '❌ WL rechazada', components: [], embeds: interaction.message.embeds });
+  }
+});
+
+// --- Bot listo ---
 client.on('ready', () => {
   console.log(`Bot listo! ${client.user.tag}`);
 });
 
-// Escuchar canal WL en Discord
-client.on('messageCreate', async message => {
-  try {
-    if (message.channel.id === WL_CHANNEL_ID && !message.author.bot) {
-      const aceptado = true; // tu lógica
-      const resultChannel = await client.channels.fetch(RESULT_CHANNEL_ID);
-      await resultChannel.send(`${message.author.tag} fue ${aceptado ? 'aceptado' : 'rechazado'}`);
-    }
-  } catch (err) {
-    console.error('Error procesando mensaje WL:', err);
-  }
-});
-
 client.login(TOKEN);
 
-// --- Start server Render ---
+// --- Iniciar server ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Servidor web corriendo en puerto ${PORT}`));
