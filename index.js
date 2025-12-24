@@ -238,7 +238,7 @@ client.on(Events.InteractionCreate, async interaction=>{
 
   const embed = new EmbedBuilder()
     .setTitle(action==='accept'?'✅ WL Aceptada':'❌ WL Rechazada')
-    .setDescription(`<@${discordId}> ${action==='accept'?'fue aceptado':'fue rechazado'} a Piña RP!`)
+    .setDescription(`<@${discordId}> ${action==='accept'?'fue aceptado':'fue rechazado'} a La Piña RP!`)
     .setColor(action==='accept'?'#00FF00':'#FF0000')
     .setImage(
       action==='accept'
