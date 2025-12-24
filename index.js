@@ -11,7 +11,7 @@ const WL_CHANNEL_ID = process.env.WL_CHANNEL_ID;
 const RESULT_CHANNEL_ID = process.env.RESULT_CHANNEL_ID;
 const PORT = process.env.PORT || 3000;
 
-// --- Discord client (sin MessageContent) ---
+// --- Discord client (sin MessageContent Intent) ---
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -24,7 +24,7 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Página principal con OAuth2
+// --- Página principal con OAuth2 ---
 app.get('/', (req, res) => {
   const oauthLink = 'https://discord.com/oauth2/authorize?client_id=1453271207490355284&response_type=code&redirect_uri=https%3A%2F%2Fwl-discord.onrender.com%2Fcallback&scope=identify+guilds';
   res.send(`
@@ -48,21 +48,64 @@ app.get('/', (req, res) => {
   `);
 });
 
-// Callback OAuth2
+// --- Callback OAuth2 ---
 app.get('/callback', async (req, res) => {
   try {
     const code = req.query.code;
     if (!code) return res.send('No se recibió código OAuth2');
-    res.send('<h2>Autenticación completada! Ahora puedes enviar tu WL.</h2>');
+
+    // Mostrar formulario WL
+    res.send(`
+      <html>
+        <head>
+          <title>WL Formulario</title>
+          <style>
+            body { font-family: Arial; text-align: center; margin-top: 30px; background: #2f3136; color: #fff; }
+            input, textarea { width: 300px; padding: 8px; margin: 5px; border-radius: 5px; border: none; }
+            button { padding: 10px 20px; background: #7289da; border: none; color: #fff; border-radius: 5px; cursor: pointer; font-size: 16px; }
+            button:hover { background: #5b6eae; }
+          </style>
+        </head>
+        <body>
+          <h1>WL Discord</h1>
+          <form id="wlForm">
+            <input type="hidden" id="discordId" value="${code}" />
+            <textarea id="respuestas" placeholder="Escribe tus respuestas aquí..." required></textarea><br/>
+            <button type="submit">Enviar WL</button>
+          </form>
+          <p id="status"></p>
+          <script>
+            const form = document.getElementById('wlForm');
+            const status = document.getElementById('status');
+            form.addEventListener('submit', async (e) => {
+              e.preventDefault();
+              const discordId = document.getElementById('discordId').value;
+              const respuestas = document.getElementById('respuestas').value;
+              const res = await fetch('/wl-form', {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({discordId, respuestas})
+              });
+              const data = await res.json();
+              if(data.status==='ok') status.innerText = '✅ WL enviada correctamente!';
+              else status.innerText = '❌ Error al enviar la WL';
+            });
+          </script>
+        </body>
+      </html>
+    `);
+
+    // Notificar al canal de resultados que alguien se autenticó
     const resultChannel = await client.channels.fetch(RESULT_CHANNEL_ID);
-    await resultChannel.send('📌 Un usuario se autenticó vía OAuth2');
+    await resultChannel.send('📌 Un usuario se autenticó vía OAuth2 y abrió el formulario WL');
+
   } catch (err) {
     console.error(err);
     res.send('Error interno en el servidor.');
   }
 });
 
-// Endpoint WL-form
+// --- Endpoint WL-form ---
 app.post('/wl-form', async (req, res) => {
   try {
     const { discordId, respuestas } = req.body;
@@ -89,13 +132,14 @@ app.post('/wl-form', async (req, res) => {
 
     await wlChannel.send({ embeds: [embed], components: [row] });
     res.json({ status: 'ok' });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error interno' });
   }
 });
 
-// Bot escucha interacción de botones
+// --- Bot escucha interacción de botones ---
 client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isButton()) return;
   const resultChannel = await client.channels.fetch(RESULT_CHANNEL_ID);
@@ -110,12 +154,12 @@ client.on(Events.InteractionCreate, async interaction => {
   }
 });
 
-// Bot listo
+// --- Bot listo ---
 client.on('ready', () => {
   console.log(`Bot listo! ${client.user.tag}`);
 });
 
 client.login(TOKEN);
 
-// Iniciar server
+// --- Iniciar server ---
 app.listen(PORT, () => console.log(`Servidor web corriendo en puerto ${PORT}`));
