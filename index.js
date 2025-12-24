@@ -5,39 +5,61 @@ const { Client, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle,
 
 const TOKEN = process.env.DISCORD_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
-const CLIENT_SECRET = process.env.CLIENT_SECRET; // Obligatorio para OAuth2
+const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const GUILD_ID = process.env.GUILD_ID;
 const WL_CHANNEL_ID = process.env.WL_CHANNEL_ID;
 const RESULT_CHANNEL_ID = process.env.RESULT_CHANNEL_ID;
 const PORT = process.env.PORT || 3000;
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
+// Roles de aceptación/rechazo
+const ROLE_ACCEPTED = '1453469378178846740';
+const ROLE_REJECTED = '1453469439306760276';
+
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages] });
 const app = express();
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static('public')); // Aquí irá logo.png
+app.use(express.static('public')); // Aquí va tu logo.png
 
-// --- Página principal ---
+// --- Preguntas WL ---
+const preguntas = [
+  "¿Qué es el MetaGaming (MG)?",
+  "Si mueres y reapareces en el hospital (PK), ¿qué debes hacer?",
+  "¿Qué es el PowerGaming (PG)?",
+  "Te están atracando con un arma en la cabeza. ¿Cómo actúas?",
+  "¿Qué significa OOC (Out Of Character)?",
+  "¿Qué es el VDM (Vehicle Deathmatch)?",
+  "¿Cuál es el procedimiento si ves a alguien incumpliendo las normas?",
+  "¿Qué es el Combat Logging?",
+  "¿Qué es el Bunny Jump?",
+  "¿Está permitido hablar de temas de la vida real (fútbol, política, clima real) por el chat de voz del juego?",
+  "¿Qué es el RDM (Random Deathmatch)?",
+  "¿Qué significa 'Valorar la vida'?"
+];
+
+// --- Página principal con instrucciones ---
 app.get('/', (req,res)=>{
   const oauthLink = `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&response_type=code&redirect_uri=https%3A%2F%2Fwl-discord.onrender.com%2Fcallback&scope=identify+guilds`;
   res.send(`
     <html>
-      <head>
-        <title>WL Piña RP</title>
-        <style>
-          body { background:#000; color:#fff; font-family: Arial; text-align:center; margin-top:50px; }
-          h1 { color:#FFD700; font-size:48px; }
-          button { padding:15px 30px; background:#FFD700; color:#000; border:none; border-radius:8px; cursor:pointer; font-size:24px; }
-          button:hover { background:#e6c200; }
-          #logo { width:200px; margin-bottom:30px; }
-        </style>
-      </head>
-      <body>
-        <img id="logo" src="/logo.png" alt="Piña RP"/>
-        <h1>Piña RP - WL Discord</h1>
-        <a href="${oauthLink}"><button>Conectar con Discord</button></a>
-      </body>
+    <head>
+      <title>WL Piña RP</title>
+      <style>
+        body { background:#000; color:#fff; font-family:Arial; text-align:center; margin-top:50px; }
+        h1 { color:#FFD700; font-size:48px; }
+        p { font-size:22px; }
+        button { padding:15px 30px; background:#FFD700; color:#000; border:none; border-radius:8px; cursor:pointer; font-size:24px; margin:10px; }
+        button:hover { background:#e6c200; }
+        #logo { width:200px; margin-bottom:30px; }
+      </style>
+    </head>
+    <body>
+      <img id="logo" src="/logo.png" alt="Piña RP"/>
+      <h1>Piña RP - WL Discord</h1>
+      <p>Lee cuidadosamente las instrucciones antes de comenzar tu WL.</p>
+      <a href="${oauthLink}"><button>Conectar con Discord y Comenzar</button></a>
+    </body>
     </html>
   `);
 });
@@ -60,82 +82,82 @@ app.get('/callback', async (req,res)=>{
       body: params,
       headers:{ 'Content-Type':'application/x-www-form-urlencoded' }
     });
+
     const tokenData = await tokenRes.json();
     if(tokenData.error) return res.send(`Error OAuth2: ${tokenData.error_description}`);
 
     const userRes = await fetch('https://discord.com/api/users/@me',{
       headers:{ Authorization: `Bearer ${tokenData.access_token}` }
     });
+
     const userData = await userRes.json();
     const discordId = userData.id;
     const username = userData.username;
 
-    // Formulario WL
-    const preguntas = [
-      "Nombre completo en Discord",
-      "Edad",
-      "Tiempo jugando RP",
-      "Rol que deseas hacer",
-      "Experiencia en MG",
-      "Experiencia en PG",
-      "Sanciones previas",
-      "Estilo RP",
-      "Disponibilidad de horario",
-      "Por qué quieres unirte a Piña RP",
-      "Describe tu personaje",
-      "Algo más que quieras añadir"
-    ];
-
+    // --- Página formulario interactivo paso a paso ---
     res.send(`
       <html>
       <head>
         <title>WL Piña RP</title>
         <style>
-          body { background:#000; color:#fff; font-family: Arial; text-align:center; margin:20px; }
+          body { background:#000; color:#fff; font-family:Arial; text-align:center; margin:20px; }
           h1 { color:#FFD700; font-size:36px; }
-          label { display:block; margin-top:15px; font-size:20px; }
-          input { width:400px; padding:10px; margin:5px; border-radius:6px; border:none; font-size:18px; }
+          #logo { width:180px; margin-bottom:20px; }
           button { padding:12px 25px; background:#FFD700; color:#000; border:none; border-radius:6px; cursor:pointer; font-size:20px; margin-top:20px; }
           button:hover { background:#e6c200; }
-          #logo { width:180px; margin-bottom:20px; }
-          #timer { font-size:24px; color:#FFD700; margin-bottom:20px; }
+          #question { font-size:22px; margin-top:20px; }
+          input { width:400px; padding:10px; margin-top:10px; border-radius:6px; border:none; font-size:18px; }
         </style>
       </head>
       <body>
-        <img id="logo" src="/logo.png" alt="Piña RP"/>
+        <img id="logo" src="/logo.png"/>
         <h1>WL Formulario - ${username}</h1>
-        <div id="timer">Tiempo restante: <span id="time">20:00</span></div>
-        <form id="wlForm">
-          ${preguntas.map((p,i)=>`<label>${p}: <input type="text" id="p${i+1}" required/></label>`).join('')}
-          <input type="hidden" id="discordId" value="${discordId}"/>
-          <button type="submit">Enviar WL</button>
-        </form>
-        <p id="status" style="font-size:22px; margin-top:15px;"></p>
+        <div id="form-container">
+          <p id="instructions">Presiona el botón "Comenzar" para iniciar el formulario. Solo podrás enviar tu WL una vez.</p>
+          <button id="startBtn">Comenzar</button>
+        </div>
         <script>
-          let timeLeft=1200;
-          const timerEl=document.getElementById('time');
-          setInterval(()=>{
-            if(timeLeft<=0){ timerEl.innerText="Tiempo agotado"; return; }
-            const m=Math.floor(timeLeft/60), s=timeLeft%60;
-            timerEl.innerText=\`\${m.toString().padStart(2,'0')}:\${s.toString().padStart(2,'0')}\`;
-            timeLeft--;
-          },1000);
+          const preguntas = ${JSON.stringify(preguntas)};
+          let current = 0;
+          const respuestas = [];
+          const discordId = "${discordId}";
 
-          const form=document.getElementById('wlForm');
-          const status=document.getElementById('status');
-          form.addEventListener('submit', async e=>{
-            e.preventDefault();
-            const discordId=document.getElementById('discordId').value;
-            let respuestas='';
-            for(let i=1;i<=12;i++) respuestas+= \`Pregunta \${i}: \${document.getElementById('p'+i).value}\\n\`;
-            const res=await fetch('/wl-form',{
+          const container = document.getElementById('form-container');
+          const startBtn = document.getElementById('startBtn');
+
+          startBtn.onclick = ()=>{ showQuestion(); };
+
+          function showQuestion(){
+            container.innerHTML = \`
+              <div id="question">\${preguntas[current]}</div>
+              <input type="text" id="answer" required/>
+              <br/>
+              <button id="nextBtn">Listo</button>
+            \`;
+
+            document.getElementById('nextBtn').onclick = ()=>{
+              const val = document.getElementById('answer').value.trim();
+              if(!val){ alert("Debes responder"); return; }
+              respuestas.push(val);
+              current++;
+              if(current < preguntas.length){
+                showQuestion();
+              }else{
+                submitWL();
+              }
+            };
+          }
+
+          async function submitWL(){
+            container.innerHTML = "<p>Enviando WL...</p>";
+            const res = await fetch('/wl-form',{
               method:'POST',
               headers:{'Content-Type':'application/json'},
               body:JSON.stringify({discordId,respuestas})
             });
-            const data=await res.json();
-            status.innerText=data.status==='ok'?'✅ WL enviada!':'❌ Error';
-          });
+            const data = await res.json();
+            container.innerHTML = "<p>" + (data.status==='ok'?'✅ WL enviada con éxito!':'❌ Error') + "</p>";
+          }
         </script>
       </body>
       </html>
@@ -151,7 +173,7 @@ app.get('/callback', async (req,res)=>{
 app.post('/wl-form', async (req,res)=>{
   try {
     const { discordId,respuestas } = req.body;
-    if(!discordId||!respuestas) return res.status(400).json({ error:'Faltan datos' });
+    if(!discordId || !respuestas) return res.status(400).json({ error:'Faltan datos' });
 
     const wlChannel = await client.channels.fetch(WL_CHANNEL_ID);
 
@@ -160,9 +182,9 @@ app.post('/wl-form', async (req,res)=>{
 
     const embed = new EmbedBuilder()
       .setTitle('📄 Nueva WL enviada')
-      .setDescription(respuestas)
+      .setDescription(respuestas.map((r,i)=>`\n**Pregunta ${i+1}:** ${r}`).join(''))
       .setColor('#FFD700')
-      .setThumbnail('https://i.imgur.com/tuLogo.png'); // Cambia por tu logo real
+      .setThumbnail('https://i.imgur.com/tuLogo.png'); // GIF o logo
 
     const row = new ActionRowBuilder()
       .addComponents(
@@ -182,8 +204,19 @@ app.post('/wl-form', async (req,res)=>{
 // --- Bot botones ---
 client.on(Events.InteractionCreate, async interaction=>{
   if(!interaction.isButton()) return;
-  const resultChannel = await client.channels.fetch(RESULT_CHANNEL_ID);
+
   const [action, discordId] = interaction.customId.split('_');
+  const guild = await client.guilds.fetch(GUILD_ID);
+  const member = await guild.members.fetch(discordId).catch(()=>null);
+  if(!member) return;
+
+  const resultChannel = await client.channels.fetch(RESULT_CHANNEL_ID);
+
+  if(action==='accept'){
+    await member.roles.add(ROLE_ACCEPTED).catch(()=>null);
+  } else if(action==='reject'){
+    await member.roles.add(ROLE_REJECTED).catch(()=>null);
+  }
 
   const embed = new EmbedBuilder()
     .setTitle(action==='accept'?'✅ WL Aceptada':'❌ WL Rechazada')
