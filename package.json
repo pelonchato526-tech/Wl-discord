@@ -1,19 +1,19 @@
 {
   "name": "wl-lapina-rp",
   "version": "1.0.0",
-  "description": "Sistema de Whitelist La Piña RP con Discord OAuth2 y bot",
+  "description": "Whitelist Piña RP con Discord OAuth2",
   "main": "index.js",
-  "type": "commonjs",
+  "type": "module",
   "scripts": {
     "start": "node index.js"
   },
-  "author": "LaPiñaRP",
-  "license": "MIT",
+  "engines": {
+    "node": "22.x"
+  },
   "dependencies": {
-    "discord.js": "^14.11.0",
     "express": "^4.18.2",
+    "discord.js": "^14.13.0",
     "dotenv": "^16.3.1",
-    "node-fetch": "^3.3.2"
+    "cookie-parser": "^1.4.6"
   }
 }
-
