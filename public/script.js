@@ -1,5 +1,13 @@
 const app = document.getElementById('app');
 
+// Configura tu OAuth
+const CLIENT_ID = '1453271207490355284';
+const REDIRECT_URI = encodeURIComponent('https://wl-discord.onrender.com/callback');
+const oauthLink = `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&response_type=code&redirect_uri=${REDIRECT_URI}&scope=identify+guilds+email+openid`;
+
+document.getElementById('oauthBtn').href = oauthLink;
+
+// Preguntas WL
 const preguntas = [
   "¿Qué es el MetaGaming (MG)?",
   "Si mueres y reapareces en el hospital (PK), ¿qué debes hacer?",
@@ -20,6 +28,18 @@ let respuestas = [];
 let tiempo = 900;
 let timerInterval;
 
+// --- Pantalla de instrucciones ---
+function mostrarInstrucciones(discordId){
+  app.innerHTML = `
+    <div class="logo-container"><img src="/logo.png" class="logo"></div>
+    <h2>Instrucciones WL</h2>
+    <p>Lee cuidadosamente cada pregunta. Tienes 15 minutos para completar la WL.</p>
+    <button id="startBtn">Comenzar WL</button>
+  `;
+  document.getElementById('startBtn').onclick = ()=>startForm(discordId);
+}
+
+// --- Formulario ---
 function startForm(discordId){
   showQuestion(discordId);
   timerInterval = setInterval(()=>{
