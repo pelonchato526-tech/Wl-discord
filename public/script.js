@@ -1,97 +1,45 @@
-const preguntas = [
-  "¿Qué es el MetaGaming (MG)?",
-  "Si mueres y reapareces en el hospital (PK), ¿qué debes hacer?",
-  "¿Qué es el PowerGaming (PG)?",
-  "Te están atracando con un arma en la cabeza. ¿Cómo actúas?",
-  "¿Qué significa OOC (Out Of Character)?",
-  "¿Qué es el VDM (Vehicle Deathmatch)?",
-  "¿Cuál es el procedimiento si ves a alguien incumpliendo las normas?",
-  "¿Qué es el Combat Logging?",
-  "¿Qué es el Bunny Jump?",
-  "¿Está permitido hablar de temas de la vida real por el chat de voz?",
-  "¿Qué es el RDM (Random Deathmatch)?",
-  "¿Qué significa Valorar la vida?"
-];
-
+const preguntas = [...]; // Array de preguntas
 let index = 0;
 let respuestas = [];
-let tiempo = 15 * 60; // 15 minutos
-let timerInterval;
+let tiempo = 900;
+const timerEl = document.getElementById('timer');
+const progressBar = document.getElementById('progress');
 
-const app = document.getElementById("app");
-
-// --- Inicializa la pantalla ---
-function pantallaInicio() {
-  mostrarPregunta();
+function updateProgress() {
+  const porcentaje = ((index) / preguntas.length) * 100;
+  progressBar.style.width = porcentaje + '%';
 }
 
-// --- Timer ---
-function iniciarTimer() {
-  timerInterval = setInterval(() => {
-    tiempo--;
-    const min = String(Math.floor(tiempo / 60)).padStart(2, '0');
-    const sec = String(tiempo % 60).padStart(2, '0');
-    const timerEl = document.getElementById("timer");
-    if(timerEl) timerEl.innerText = `⏳ Tiempo restante: ${min}:${sec}`;
+function showQuestion() {
+  if(index === 0) startTimer();
+  updateProgress();
 
-    if (tiempo <= 0) {
-      clearInterval(timerInterval);
-      app.innerHTML = "<h1>⛔ Tiempo agotado</h1>";
-    }
-  }, 1000);
-}
-
-// --- Muestra pregunta ---
-function mostrarPregunta() {
-  if(index === 0) iniciarTimer();
-
-  const progreso = Math.round((index / preguntas.length) * 100);
-
-  app.innerHTML = `
-    <div class="timer" id="timer">⏳ Tiempo restante: 15:00</div>
-    <div class="progress"><div style="width:${progreso}%;background:#FFD700;height:100%;border-radius:10px;"></div></div>
-    <div class="question">${preguntas[index]}</div>
-    <textarea id="respuesta" placeholder="Escribe tu respuesta..."></textarea>
-    <button class="btn" onclick="siguiente()">Siguiente</button>
+  // Renderiza pregunta + input
+  const container = document.getElementById('form-container');
+  container.innerHTML = `
+    <div id="question">${preguntas[index]}</div>
+    <input type="text" id="answer" placeholder="Escribe tu respuesta...">
+    <button id="nextBtn">Listo</button>
+    <div class="progress-container"><div class="progress-bar" id="progress"></div></div>
   `;
+  document.getElementById('nextBtn').onclick = nextQuestion;
 }
 
-// --- Siguiente pregunta ---
-function siguiente() {
-  const val = document.getElementById("respuesta").value.trim();
-  if(!val) return alert("Debes responder la pregunta");
-
+function nextQuestion() {
+  const val = document.getElementById('answer').value.trim();
+  if(!val) return alert("Debes responder");
   respuestas.push(val);
   index++;
-
-  if(index < preguntas.length) {
-    mostrarPregunta();
-  } else {
-    enviarWL();
-  }
+  if(index < preguntas.length) showQuestion();
+  else submitWL();
 }
 
-// --- Enviar WL ---
-async function enviarWL() {
-  clearInterval(timerInterval);
-  app.innerHTML = "<h1>📨 Enviando WL...</h1>";
-
-  try {
-    const resp = await fetch("/wl-form", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ respuestas })
-    });
-    const data = await resp.json();
-    if(data.ok){
-      app.innerHTML = "<h1>✅ WL enviada correctamente</h1>";
-    } else {
-      app.innerHTML = `<h1>❌ ${data.mensaje}</h1>`;
-    }
-  } catch(e){
-    console.error(e);
-    app.innerHTML = "<h1>❌ Error al enviar WL</h1>";
-  }
+function startTimer() {
+  const interval = setInterval(()=>{
+    if(tiempo <=0){ clearInterval(interval); alert("⏰ Tiempo expirado"); return; }
+    const min = Math.floor(tiempo/60);
+    const sec = tiempo%60;
+    timerEl.innerText = `Tiempo restante: ${min.toString().padStart(2,'0')}:${sec.toString().padStart(2,'0')}`;
+    tiempo--;
+  },1000);
 }
-
-pantallaInicio();
