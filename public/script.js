@@ -1,3 +1,8 @@
+const startBtn = document.getElementById('startBtn');
+const app = document.getElementById('app');
+const timerEl = document.getElementById('timer');
+const fill = document.getElementById('fill');
+
 const preguntas = [
   "¿Qué es el MetaGaming (MG)?",
   "Si mueres y reapareces en el hospital (PK), ¿qué debes hacer?",
@@ -8,108 +13,76 @@ const preguntas = [
   "¿Cuál es el procedimiento si ves a alguien incumpliendo las normas?",
   "¿Qué es el Combat Logging?",
   "¿Qué es el Bunny Jump?",
-  "¿Está permitido hablar de temas de la vida real por el chat de voz?",
+  "¿Está permitido hablar de temas de la vida real (fútbol, política, clima real) por el chat de voz del juego?",
   "¿Qué es el RDM (Random Deathmatch)?",
-  "¿Qué significa valorar la vida?"
+  "¿Qué significa 'Valorar la vida'?"
 ];
 
-let index = 0;
+let current = 0;
 let respuestas = [];
 let tiempo = 900;
+let attempts = 0;
 let timerInterval;
-let hasFocus = true;
 
-// Comprobar si ya envió WL
-const discordId = sessionStorage.getItem('discordId');
-const wlEnviada = sessionStorage.getItem('wlEnviada');
-
-if(wlEnviada){
-  document.getElementById('app').innerHTML = "<h1>✅ Ya enviaste tu WL</h1>";
-} else {
-  startForm();
-}
-
-function startForm(){
-  const app = document.getElementById('app');
-  app.innerHTML = `
-    <img src="/logo.png" class="logo">
-    <h1>Formulario WL</h1>
-    <div id="timer">Tiempo restante: 15:00</div>
-    <div id="form-container">
-      <p>Presiona "Comenzar" para iniciar la WL</p>
-      <button id="startBtn" class="btn">Comenzar</button>
-      <div class="progress-bar" style="height:10px; width:100%; background:#333; border-radius:5px; margin-top:15px;">
-        <div id="progress" style="height:100%; width:0%; background: linear-gradient(90deg,#FFD700,#FFA500); border-radius:5px;"></div>
-      </div>
-    </div>
-  `;
-
-  document.getElementById('startBtn').onclick = ()=>{ showQuestion(); startTimer(); };
-}
-
-// Mostrar pregunta
-function showQuestion(){
-  const app = document.getElementById('form-container');
-  app.innerHTML = `
-    <div id="question">${preguntas[index]}</div>
-    <textarea id="answer" placeholder="Escribe tu respuesta..."></textarea>
-    <button id="nextBtn" class="btn">Siguiente</button>
-  `;
-  document.getElementById('nextBtn').onclick = nextQuestion;
-}
-
-// Siguiente pregunta
-function nextQuestion(){
-  const val = document.getElementById('answer').value.trim();
-  if(!val) return alert("Debes responder la pregunta");
-  respuestas.push(val);
-  index++;
-  document.getElementById('progress').style.width = `${Math.floor((index/preguntas.length)*100)}%`;
-  if(index < preguntas.length){
-    showQuestion();
-  } else {
-    enviarWL();
-  }
-}
-
-// Timer y cancelación si cambia pestaña
-function startTimer(){
+function startWL(){
+  if(attempts >= 3){ alert("Ya superaste tus 3 intentos"); return; }
+  attempts++;
+  current=0;
+  respuestas=[];
+  showQuestion();
   timerInterval = setInterval(()=>{
-    if(!hasFocus){
-      clearInterval(timerInterval);
-      alert("⛔ Cambiaste de pestaña, WL cancelada");
-      location.reload();
-    }
+    if(tiempo<=0){ clearInterval(timerInterval); cancelWL(); return; }
+    let min = Math.floor(tiempo/60);
+    let sec = tiempo%60;
+    timerEl.innerText = `Tiempo restante: ${min.toString().padStart(2,'0')}:${sec.toString().padStart(2,'0')}`;
     tiempo--;
-    const min = String(Math.floor(tiempo/60)).padStart(2,'0');
-    const sec = String(tiempo%60).padStart(2,'0');
-    document.getElementById('timer').innerText = `⏳ Tiempo restante: ${min}:${sec}`;
-    if(tiempo <= 0){
-      clearInterval(timerInterval);
-      alert("⏰ Tiempo agotado");
-      location.reload();
-    }
   },1000);
 }
 
-window.onblur = ()=>{ hasFocus=false; };
-window.onfocus = ()=>{ hasFocus=true; };
+function showQuestion(){
+  app.innerHTML = `
+    <img id="logo" src="logo.png"/>
+    <h1>WL Formulario</h1>
+    <p id="question">${preguntas[current]}</p>
+    <input type="text" id="answer"/>
+    <button id="nextBtn">Listo</button>
+    <div id="progressBar"><div id="fill"></div></div>
+    <div id="timer">${timerEl.innerText}</div>
+  `;
+  document.getElementById('nextBtn').onclick = ()=>{
+    const val = document.getElementById('answer').value.trim();
+    if(!val){ alert("Debes responder"); return; }
+    respuestas.push(val);
+    fill.style.width = `${((current+1)/preguntas.length)*100}%`;
+    current++;
+    if(current < preguntas.length){
+      showQuestion();
+    } else {
+      submitWL();
+    }
+  };
+}
 
-// Enviar WL
-async function enviarWL(){
+async function submitWL(){
   clearInterval(timerInterval);
-  const app = document.getElementById('form-container');
   app.innerHTML = "<p>Enviando WL...</p>";
+  const discordId = document.cookie.replace(/(?:(?:^|.*;\s*)discordId\s*\=\s*([^;]*).*$)|^.*$/,"$1");
   const res = await fetch('/wl-form',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({discordId,respuestas})
+    body:JSON.stringify({discordId,respuestas})
   });
   const data = await res.json();
-  if(data.status==='ok'){
-    sessionStorage.setItem('wlEnviada',true);
-    app.innerHTML = "<h1>✅ WL enviada correctamente</h1>";
-  } else {
-    app.innerHTML = "<h1>❌ Error al enviar WL</h1>";
-  }
+  app.innerHTML = `<p>${data.status==='ok'?'✅ WL enviada!':'❌ Error'}</p>`;
 }
+
+function cancelWL(){
+  clearInterval(timerInterval);
+  alert("❌ WL cancelada por cambio de pestaña o recarga");
+  window.location.reload();
+}
+
+window.addEventListener('blur', cancelWL);
+window.addEventListener('beforeunload', cancelWL);
+
+startBtn.onclick = startWL;
