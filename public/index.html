@@ -3,17 +3,24 @@
 <head>
 <meta charset="UTF-8">
 <title>La Piña RP | Whitelist</title>
-<link rel="stylesheet" href="/style.css">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="card inicio">
-  <img src="/logo.png" id="logo">
-  <h1>La Piña RP</h1>
+<div class="card" id="app">
+  <img src="/logo.png" class="logo">
+  <h1>Whitelist La Piña RP</h1>
   <p>Lee cuidadosamente las instrucciones antes de comenzar tu WL.</p>
   <p>Solo puedes enviar tu WL una vez.</p>
-  <a href="/oauth">
+  <a id="connect-btn" href="">
     <button class="btn">Conectar con Discord y Comenzar</button>
   </a>
 </div>
+<script>
+  const CLIENT_ID = '1453271207490355284';
+  const REDIRECT_URI = 'https://wl-discord.onrender.com/callback';
+  document.getElementById('connect-btn').href = 
+    `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=identify+guilds+email+openid`;
+</script>
 </body>
 </html>
