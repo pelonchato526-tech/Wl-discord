@@ -1,26 +1,42 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>La Piña RP | Whitelist</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <title>Whitelist | La Piña RP</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<div class="card" id="app">
+
+<div class="card" id="card">
   <img src="/logo.png" class="logo">
+  
   <h1>Whitelist La Piña RP</h1>
-  <p>Lee cuidadosamente las instrucciones antes de comenzar tu WL.</p>
-  <p>Solo puedes enviar tu WL una vez.</p>
-  <a id="connect-btn" href="">
-    <button class="btn">Conectar con Discord y Comenzar</button>
-  </a>
+  <p id="instructions">
+    Tenés tiempo limitado para responder.<br>
+    Cambiar de pestaña cancelará el intento.<br>
+    Máximo 3 intentos.
+  </p>
+
+  <div id="timer">Tiempo: <span id="time">300</span>s</div>
+
+  <div class="progress">
+    <div class="bar" id="bar"></div>
+  </div>
+
+  <button id="start">Comenzar</button>
+
+  <form id="form" hidden>
+    <input type="text" placeholder="Nombre IC" required>
+    <textarea placeholder="¿Por qué querés entrar?" required></textarea>
+    <button type="submit">Enviar</button>
+  </form>
 </div>
-<script>
-  const CLIENT_ID = '1453271207490355284';
-  const REDIRECT_URI = 'https://wl-discord.onrender.com/callback';
-  document.getElementById('connect-btn').href = 
-    `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=identify+guilds+email+openid`;
-</script>
+
+<footer>
+  © La Piña RP — Todos los derechos reservados
+</footer>
+
+<script src="/script.js"></script>
 </body>
 </html>
