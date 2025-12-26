@@ -1,13 +1,7 @@
-const app = document.getElementById('app');
+const params = new URLSearchParams(window.location.search);
+const discordId = params.get('discordId');
+const username = params.get('username');
 
-// Configura tu OAuth
-const CLIENT_ID = '1453271207490355284';
-const REDIRECT_URI = encodeURIComponent('https://wl-discord.onrender.com/callback');
-const oauthLink = `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&response_type=code&redirect_uri=${REDIRECT_URI}&scope=identify+guilds+email+openid`;
-
-document.getElementById('oauthBtn').href = oauthLink;
-
-// Preguntas WL
 const preguntas = [
   "¿Qué es el MetaGaming (MG)?",
   "Si mueres y reapareces en el hospital (PK), ¿qué debes hacer?",
@@ -18,66 +12,69 @@ const preguntas = [
   "¿Cuál es el procedimiento si ves a alguien incumpliendo las normas?",
   "¿Qué es el Combat Logging?",
   "¿Qué es el Bunny Jump?",
-  "¿Está permitido hablar de temas de la vida real por el chat de voz?",
+  "¿Está permitido hablar de temas de la vida real por chat de voz?",
   "¿Qué es el RDM (Random Deathmatch)?",
-  "¿Qué significa valorar la vida?"
+  "¿Qué significa 'Valorar la vida'?"
 ];
 
-let index = 0;
+let current = 0;
 let respuestas = [];
-let tiempo = 900;
-let timerInterval;
+let tiempo = 900; // 15 min
+const formContainer = document.getElementById('formContainer');
+const progressBar = document.getElementById('progressBar');
+const timerEl = document.getElementById('timer');
+const tituloForm = document.getElementById('tituloForm');
 
-// --- Pantalla de instrucciones ---
-function mostrarInstrucciones(discordId){
-  app.innerHTML = `
-    <div class="logo-container"><img src="/logo.png" class="logo"></div>
-    <h2>Instrucciones WL</h2>
-    <p>Lee cuidadosamente cada pregunta. Tienes 15 minutos para completar la WL.</p>
-    <button id="startBtn">Comenzar WL</button>
-  `;
-  document.getElementById('startBtn').onclick = ()=>startForm(discordId);
+function actualizarProgress(){
+  const perc = ((current)/preguntas.length)*100;
+  progressBar.style.width = perc+'%';
 }
 
-// --- Formulario ---
-function startForm(discordId){
-  showQuestion(discordId);
-  timerInterval = setInterval(()=>{
-    tiempo--;
-    if(tiempo<=0){ clearInterval(timerInterval); app.innerHTML="<h2>⏰ Tiempo agotado</h2>"; return; }
-  },1000);
-}
-
-function showQuestion(discordId){
-  app.innerHTML = `
-    <div class="logo-container"><img src="/logo.png" class="logo"></div>
-    <div class="progress-bar"><div class="progress" style="width:${(index/preguntas.length)*100}%"></div></div>
-    <h2>${preguntas[index]}</h2>
-    <textarea id="answer" placeholder="Escribe tu respuesta"></textarea>
-    <button id="nextBtn">Listo</button>
-  `;
-  document.getElementById('nextBtn').onclick = ()=>next(discordId);
-}
-
-async function next(discordId){
-  const val = document.getElementById('answer').value.trim();
-  if(!val) return alert('Debes responder la pregunta');
-  respuestas.push(val);
-  index++;
-  if(index < preguntas.length){
-    showQuestion(discordId);
-  } else {
-    await submitWL(discordId);
+function actualizarTimer(){
+  const min = Math.floor(tiempo/60).toString().padStart(2,'0');
+  const sec = (tiempo%60).toString().padStart(2,'0');
+  timerEl.innerText = `⏳ Tiempo restante: ${min}:${sec}`;
+  tiempo--;
+  if(tiempo<0){
+    clearInterval(timerInterval);
+    formContainer.innerHTML = "<p>⛔ Tiempo agotado</p>";
   }
 }
 
-async function submitWL(discordId){
-  app.innerHTML = "<h2>Enviando WL...</h2>";
-  const res = await fetch('/wl-form',{
+const timerInterval = setInterval(actualizarTimer,1000);
+
+function mostrarPregunta(){
+  actualizarProgress();
+  formContainer.innerHTML = `
+    <div>${preguntas[current]}</div>
+    <textarea id="respuesta" placeholder="Escribe tu respuesta..."></textarea>
+    <br/>
+    <button id="nextBtn" class="btn">Siguiente</button>
+  `;
+  document.getElementById('nextBtn').onclick = ()=> {
+    const val = document.getElementById('respuesta').value.trim();
+    if(!val) return alert("Debes responder la pregunta");
+    respuestas.push(val);
+    current++;
+    if(current<preguntas.length){
+      mostrarPregunta();
+    }else{
+      enviarWL();
+    }
+  };
+}
+
+function enviarWL(){
+  formContainer.innerHTML = "<p>Enviando WL...</p>";
+  fetch('/wl-form',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({discordId,respuestas})
+  }).then(res=>res.json()).then(data=>{
+    formContainer.innerHTML = data.ok?"<p>✅ WL enviada correctamente</p>":"<p>❌ Error al enviar</p>";
+    clearInterval(timerInterval);
+    progressBar.style.width = "100%";
   });
-  const data = await res.json();
-  app.innerHTML = "<h2>"+(data.status==='ok'?'✅ WL enviada!':'❌ Error')+"</h2>";
 }
+
+mostrarPregunta();
