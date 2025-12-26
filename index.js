@@ -1,6 +1,5 @@
 import express from 'express';
 import fetch from 'node-fetch';
-import cookieParser from 'cookie-parser';
 import { Client, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Events } from 'discord.js';
 
 const {
@@ -15,7 +14,6 @@ const ROLE_REJECTED = 'ROLE_REJECTED_ID';
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages] });
 const app = express();
-app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
@@ -36,10 +34,10 @@ const preguntas = [
   "¿Qué significa 'Valorar la vida'?"
 ];
 
-// Usuarios que ya enviaron WL
+// Usuarios con estado
 const wlUsers = new Map();
 
-// --- Página de inicio ---
+// --- Inicio ---
 app.get('/', (req,res)=>{
   const oauthLink = `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&response_type=code&redirect_uri=https%3A%2F%2Fwl-discord.onrender.com%2Fcallback&scope=identify+guilds+email+openid`;
   res.send(`
@@ -60,7 +58,7 @@ app.get('/', (req,res)=>{
   `);
 });
 
-// --- Callback OAuth2 ---
+// --- Callback ---
 app.get('/callback', async (req,res)=>{
   try{
     const code = req.query.code;
@@ -86,16 +84,20 @@ app.get('/callback', async (req,res)=>{
     const discordId = userData.id;
     const username = userData.username;
 
-    if(wlUsers.has(discordId)) return res.send("<h2>Ya enviaste tu WL o tu resultado ya está definido</h2>");
+    // Revisar si ya envió WL
+    const estado = wlUsers.get(discordId);
+    if(estado){
+      return res.send(`<h2>Tu WL ya fue enviada y tu estado es: ${estado.status || "Pendiente"}</h2>`);
+    }
 
     res.send(`
       <html>
       <head>
-        <title>La Piña RP - Instrucciones</title>
+        <title>Whitelist - Instrucciones</title>
         <link rel="stylesheet" href="/style.css">
       </head>
       <body>
-        <div class="card gradient-border">
+        <div class="card gradient-border" id="wlCard">
           <img src="/logo.png" id="logo"/>
           <h1>Whitelist - ${username}</h1>
           <p>Solo puedes enviar tu WL una vez. Presiona "Comenzar" para iniciar.</p>
@@ -109,14 +111,22 @@ app.get('/callback', async (req,res)=>{
           const discordId="${discordId}";
           const container = document.getElementById('formContainer');
           const startBtn = document.getElementById('startBtn');
+          let wlCancelled=false;
 
-          startBtn.onclick = ()=>{ showQuestion(); startBtn.style.display='none'; };
+          // Detectar cambio de pestaña o refresh
+          window.addEventListener('blur', ()=>{ wlCancelled=true; container.innerHTML="<p>⚠️ WL cancelada por cambio de pestaña.</p>"; });
+          window.addEventListener('beforeunload', ()=>{ localStorage.setItem('wlCancelled', 'true'); });
+
+          startBtn.onclick = ()=>{
+            if(localStorage.getItem('wlCancelled')==='true'){ container.innerHTML="<p>⚠️ WL cancelada anteriormente. Vuelve a intentarlo.</p>"; return; }
+            showQuestion(); startBtn.style.display='none';
+          };
 
           function showQuestion(){
             if(current>=preguntas.length){ submitWL(); return; }
             container.innerHTML = \`
               <p>\${preguntas[current]}</p>
-              <input type="text" id="answer" />
+              <input type="text" id="answer"/>
               <button onclick="nextQuestion()">Listo</button>
               <div class="progress-bar"><div class="progress-fill" style="width:\${Math.floor(current/preguntas.length*100)}%"></div></div>
             \`;
@@ -138,6 +148,7 @@ app.get('/callback', async (req,res)=>{
             const data = await res.json();
             if(data.status==='ok'){
               container.innerHTML="<h2>✅ WL enviada con éxito!</h2>";
+              localStorage.setItem('wlSent', 'true');
             }else{
               container.innerHTML="<h2>❌ Error al enviar WL</h2>";
             }
@@ -178,9 +189,7 @@ app.post('/wl-form', async (req,res)=>{
       );
 
     await wlChannel.send({embeds:[embed], components:[row]});
-
     res.json({status:'ok'});
-
   }catch(err){
     console.error(err);
     res.status(500).json({error:'Error interno'});
@@ -205,7 +214,7 @@ client.on(Events.InteractionCreate, async interaction=>{
   await resultChannel.send({embeds:[embed]});
   await interaction.update({content: action==='accept'?'✅ WL aceptada':'❌ WL rechazada', components:[], embeds:interaction.message.embeds });
 
-  wlUsers.set(discordId,{...wlUsers.get(discordId), status:action}); // Guardar resultado
+  wlUsers.set(discordId,{...wlUsers.get(discordId), status:action});
 });
 
 client.on('ready', ()=>console.log(`Bot listo! ${client.user.tag}`));
