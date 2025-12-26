@@ -1,10 +1,5 @@
-const urlParams = new URLSearchParams(window.location.search);
-const discordId = urlParams.get('discordId');
-const username = urlParams.get('username');
-
-if(!discordId || !username){
-  window.location.href = '/';
-}
+const startBtn = document.getElementById('startBtn');
+const app = document.getElementById('app');
 
 const preguntas = [
   "¿Qué es el MetaGaming (MG)?",
@@ -18,63 +13,54 @@ const preguntas = [
   "¿Qué es el Bunny Jump?",
   "¿Está permitido hablar de temas de la vida real por el chat de voz?",
   "¿Qué es el RDM (Random Deathmatch)?",
-  "¿Qué significa 'Valorar la vida'?"
+  "¿Qué significa valorar la vida?"
 ];
 
 let index = 0;
-const respuestas = [];
+let respuestas = [];
 let tiempo = 900;
-const app = document.getElementById('app');
+let timerInterval;
 
-function startForm(){
-  app.innerHTML = `
-    <img src="/logo.png" class="logo">
-    <h1>WL Formulario - ${username}</h1>
-    <div id="timer">Tiempo restante: 15:00</div>
-    <div id="progress-bar"></div>
-    <div id="question-container">
-      <p id="question">${preguntas[index]}</p>
-      <textarea id="answer" placeholder="Escribe tu respuesta..."></textarea>
-      <button class="btn" id="nextBtn">Siguiente</button>
-    </div>
-  `;
-  iniciarTimer();
-  document.getElementById('nextBtn').onclick = siguientePregunta;
-}
-
-function iniciarTimer(){
-  const timerEl = document.getElementById('timer');
-  const interval = setInterval(()=>{
+startBtn.onclick = () => {
+  showQuestion();
+  timerInterval = setInterval(()=>{
     tiempo--;
-    const m = String(Math.floor(tiempo/60)).padStart(2,'0');
-    const s = String(tiempo%60).padStart(2,'0');
-    timerEl.innerText = `Tiempo restante: ${m}:${s}`;
-    if(tiempo<=0){ clearInterval(interval); app.innerHTML="<h1>⏰ Tiempo agotado</h1>"; }
+    if(tiempo<=0){ clearInterval(timerInterval); app.innerHTML="<h2>⏰ Tiempo agotado</h2>"; return; }
   },1000);
+};
+
+function showQuestion(){
+  app.innerHTML = `
+    <div class="progress-bar">
+      <div class="progress" style="width:${(index/preguntas.length)*100}%"></div>
+    </div>
+    <h2>${preguntas[index]}</h2>
+    <textarea id="answer" placeholder="Escribe tu respuesta"></textarea>
+    <button id="nextBtn">Listo</button>
+  `;
+  document.getElementById('nextBtn').onclick = next;
 }
 
-function siguientePregunta(){
+async function next(){
   const val = document.getElementById('answer').value.trim();
-  if(!val){ alert("Debes responder"); return; }
+  if(!val) return alert('Debes responder la pregunta');
   respuestas.push(val);
   index++;
   if(index < preguntas.length){
-    document.getElementById('question').innerText = preguntas[index];
-    document.getElementById('answer').value = "";
-  } else {
-    enviarWL();
+    showQuestion();
+  }else{
+    await submitWL();
   }
 }
 
-async function enviarWL(){
-  app.innerHTML = "<h1>Enviando WL...</h1>";
+async function submitWL(){
+  app.innerHTML = "<h2>Enviando WL...</h2>";
+  const discordId = "TU_DISCORD_ID"; // reemplazar con variable de OAuth
   const res = await fetch('/wl-form',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({discordId,respuestas})
   });
   const data = await res.json();
-  app.innerHTML = `<h1>${data.status==='ok'?'✅ WL enviada correctamente':'❌ Error'}</h1>`;
+  app.innerHTML = "<h2>"+(data.status==='ok'?'✅ WL enviada!':'❌ Error')+"</h2>";
 }
-
-startForm();
