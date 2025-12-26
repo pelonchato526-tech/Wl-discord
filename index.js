@@ -1,6 +1,8 @@
-const express = require("express");
-const path = require("path");
-const {
+import express from "express";
+import fetch from "node-fetch";
+import path from "path";
+import { fileURLToPath } from "url";
+import {
   Client,
   GatewayIntentBits,
   EmbedBuilder,
@@ -8,11 +10,15 @@ const {
   ButtonBuilder,
   ButtonStyle,
   Events
-} = require("discord.js");
+} from "discord.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
+app.use(express.json());
+app.use(express.static(path.join(__dirname, "public")));
 
-/* ===== ENV ===== */
 const {
   CLIENT_ID,
   CLIENT_SECRET,
@@ -25,36 +31,21 @@ const {
   PORT = 3000
 } = process.env;
 
-/* ===== MEMORIA ===== */
-const wlState = new Map(); 
-// discordId => { status: "none|sent|accepted|rejected", attempts: number }
-
-/* ===== DISCORD ===== */
+/* ================= DISCORD ================= */
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers
-  ]
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
 });
-
 client.login(DISCORD_TOKEN);
-client.once("ready", () => {
-  console.log("🤖 Bot listo:", client.user.tag);
-});
+client.once("ready", () => console.log("🤖 Bot listo"));
 
-/* ===== EXPRESS ===== */
-app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
+/* ================= WL STATE ================= */
+const wlState = new Map();
 
-app.get("/", (_, res) => {
-  res.sendFile(path.join(__dirname, "public/index.html"));
-});
-
-/* ===== OAUTH CALLBACK ===== */
+/* ================= OAUTH ================= */
 app.get("/callback", async (req, res) => {
   try {
     const code = req.query.code;
-    if (!code) return res.status(400).send("No code");
+    if (!code) return res.send("No autorizado");
 
     const params = new URLSearchParams({
       client_id: CLIENT_ID,
@@ -81,33 +72,27 @@ app.get("/callback", async (req, res) => {
     }
 
     res.redirect(`/form.html?uid=${user.id}&name=${user.username}`);
-  } catch (e) {
-    console.error(e);
-    res.status(500).send("Error interno");
+  } catch {
+    res.send("Error OAuth");
   }
 });
 
-/* ===== ENVIAR WL ===== */
+/* ================= SUBMIT WL ================= */
 app.post("/submit", async (req, res) => {
   const { discordId, answers } = req.body;
   const state = wlState.get(discordId);
 
   if (!state) return res.json({ error: "No autorizado" });
-  if (state.status === "sent") return res.json({ error: "Ya enviaste WL" });
-  if (state.attempts >= 3) return res.json({ error: "Sin intentos" });
+  if (state.status !== "filling") return res.json({ error: "WL inválida" });
+  if (answers.length !== 12) return res.json({ error: "WL incompleta" });
 
   state.status = "sent";
-  state.attempts++;
-
-  const channel = await client.channels.fetch(WL_CHANNEL_ID);
-
-  await channel.send(`<@${discordId}> envió su WL:`);
 
   const embed = new EmbedBuilder()
-    .setTitle("📄 Nueva WL")
-    .setColor("#FFD700")
+    .setTitle("📄 Whitelist")
+    .setColor("#f1c40f")
     .setDescription(
-      answers.map((a, i) => `**${i + 1}.** ${a}`).join("\n")
+      answers.map((a, i) => `**${i + 1}.** ${a}`).join("\n\n")
     );
 
   const row = new ActionRowBuilder().addComponents(
@@ -121,48 +106,61 @@ app.post("/submit", async (req, res) => {
       .setStyle(ButtonStyle.Danger)
   );
 
-  await channel.send({ embeds: [embed], components: [row] });
+  const channel = await client.channels.fetch(WL_CHANNEL_ID);
+  await channel.send({
+    content: `<@${discordId}>`,
+    embeds: [embed],
+    components: [row]
+  });
+
   res.json({ ok: true });
 });
 
-/* ===== BOTONES ===== */
+/* ================= BOTONES ================= */
 client.on(Events.InteractionCreate, async (i) => {
   if (!i.isButton()) return;
   const [action, id] = i.customId.split("_");
+
+  const state = wlState.get(id);
+  if (!state) return;
 
   const guild = await client.guilds.fetch(GUILD_ID);
   const member = await guild.members.fetch(id).catch(() => null);
   if (!member) return;
 
-  const state = wlState.get(id);
-  if (!state) return;
-
-  const resultEmbed = new EmbedBuilder()
-    .setColor(action === "accept" ? "#00ff00" : "#ff0000")
-    .setTitle(action === "accept" ? "✅ WL Aceptada" : "❌ WL Rechazada")
-    .setImage(
-      action === "accept"
-        ? "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExMGowbHhkaXJyeXcwanFjenNnbTV4ZTZhaGViMjN1cXIyODk2emcwNyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/RGxQHSsRUP753rvYHs/giphy.gif"
-        : "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExNGxiZzhnaXU1czFqMWVjNjNxNzVnMnB0N2VpdTdmNndlbHh6d2U1eiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/2iD1cNf6tslgWDLn6n/giphy.gif"
-    );
-
   if (action === "accept") {
     state.status = "accepted";
     await member.roles.add(ROLE_ACCEPTED);
-  } else {
-    state.status = "rejected";
-    await member.roles.add(ROLE_REJECTED);
+    await i.update({ components: [] });
+    await client.channels.fetch(RESULT_CHANNEL_ID)
+      .then(c => c.send(`✅ <@${id}> **ACEPTADO**`));
   }
 
-  const resultChannel = await client.channels.fetch(RESULT_CHANNEL_ID);
-  await resultChannel.send({
-    content: `<@${id}>`,
-    embeds: [resultEmbed]
-  });
+  if (action === "reject") {
+    state.status = "rejected";
+    await member.roles.add(ROLE_REJECTED);
 
-  await member.send({ embeds: [resultEmbed] }).catch(() => {});
+    const retry = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`retry_${id}`)
+        .setLabel("🎟 Otra oportunidad")
+        .setStyle(ButtonStyle.Secondary)
+    );
 
-  await i.update({ components: [] });
+    await i.update({ components: [retry] });
+    await client.channels.fetch(RESULT_CHANNEL_ID)
+      .then(c => c.send(`❌ <@${id}> **RECHAZADO**`));
+  }
+
+  if (action === "retry") {
+    if (state.attempts >= 3) {
+      return i.reply({ content: "❌ Sin intentos", ephemeral: true });
+    }
+    state.status = "none";
+    await i.update({ components: [] });
+    await member.send("🎟 Tenés otra oportunidad para la WL.");
+  }
 });
 
-app.listen(PORT, () => console.log("🌐 Web en puerto", PORT));
+/* ================= START ================= */
+app.listen(PORT, () => console.log("🌐 Web lista"));
