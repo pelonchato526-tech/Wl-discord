@@ -46,7 +46,7 @@ function showQuestion(){
     <p id="question">${preguntas[current]}</p>
     <input type="text" id="answer"/>
     <button id="nextBtn">Listo</button>
-    <div id="progressBar"><div id="fill"></div></div>
+    <div id="progressBar"><div id="fill" style="width:${((current)/preguntas.length)*100}%"></div></div>
     <div id="timer">${timerEl.innerText}</div>
   `;
   document.getElementById('nextBtn').onclick = ()=>{
