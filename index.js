@@ -1,33 +1,28 @@
-const express = require('express');
-const fetch = require('node-fetch');
-const { Client, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Events } = require('discord.js');
 require('dotenv').config();
+const express = require('express');
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+const { Client, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Events } = require('discord.js');
 
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Discord
 const TOKEN = process.env.DISCORD_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const GUILD_ID = process.env.GUILD_ID;
 const WL_CHANNEL_ID = process.env.WL_CHANNEL_ID;
 const RESULT_CHANNEL_ID = process.env.RESULT_CHANNEL_ID;
-const PORT = process.env.PORT || 3000;
 
 // Roles
-const ROLE_ACCEPTED = '1453469378178846740';
-const ROLE_REJECTED = '1453469439306760276';
+const ROLE_ACCEPTED = process.env.ROLE_ACCEPTED;
+const ROLE_REJECTED = process.env.ROLE_REJECTED;
 
-// OAuth2 URL
-const OAUTH_URL = `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&response_type=code&redirect_uri=https%3A%2F%2Fwl-discord.onrender.com%2Fcallback&scope=identify+guilds+email+openid`;
-
-const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages]
-});
-
-const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
-// Preguntas WL
+// --- Preguntas WL ---
 const preguntas = [
   "¿Qué es el MetaGaming (MG)?",
   "Si mueres y reapareces en el hospital (PK), ¿qué debes hacer?",
@@ -40,39 +35,19 @@ const preguntas = [
   "¿Qué es el Bunny Jump?",
   "¿Está permitido hablar de temas de la vida real por el chat de voz?",
   "¿Qué es el RDM (Random Deathmatch)?",
-  "¿Qué significa valorar la vida?"
+  "¿Qué significa 'Valorar la vida'?"
 ];
 
-// Usuarios que ya enviaron WL
-const usuariosWL = {};
-
-// --- Página de inicio ---
-app.get('/', (req,res)=>{
-  res.send(`
-  <html>
-  <head>
-    <title>WL La Piña RP</title>
-    <link rel="stylesheet" href="/style.css">
-  </head>
-  <body>
-    <div class="card" id="inicio">
-      <img src="/logo.png" class="logo">
-      <h1>La Piña RP</h1>
-      <p>Lee cuidadosamente las instrucciones antes de comenzar tu WL.</p>
-      <p>Recuerda: Solo puedes enviar tu WL una vez.</p>
-      <a href="${OAUTH_URL}"><button class="btn">Conectar con Discord y Comenzar</button></a>
-    </div>
-    <script src="/script.js"></script>
-  </body>
-  </html>
-  `);
+// --- Inicio ---
+app.get('/', (req, res) => {
+  res.sendFile(__dirname + '/index.html');
 });
 
 // --- Callback OAuth2 ---
 app.get('/callback', async (req,res)=>{
-  try{
+  try {
     const code = req.query.code;
-    if(!code) return res.send("❌ No se recibió código OAuth2");
+    if(!code) return res.send("No se recibió código OAuth2");
 
     const params = new URLSearchParams();
     params.append('client_id', CLIENT_ID);
@@ -88,7 +63,7 @@ app.get('/callback', async (req,res)=>{
     });
 
     const tokenData = await tokenRes.json();
-    if(tokenData.error) return res.send(`❌ Error OAuth2: ${tokenData.error_description}`);
+    if(tokenData.error) return res.send(`Error OAuth2: ${tokenData.error_description}`);
 
     const userRes = await fetch('https://discord.com/api/users/@me',{
       headers:{ Authorization: `Bearer ${tokenData.access_token}` }
@@ -97,33 +72,9 @@ app.get('/callback', async (req,res)=>{
     const discordId = userData.id;
     const username = userData.username;
 
-    // Verificar si ya envió WL
-    if(usuariosWL[discordId]){
-      return res.send(`<p>Ya enviaste la WL y fue ${usuariosWL[discordId].estado}</p>`);
-    }
-
-    // Redirigir a formulario
-    res.send(`
-      <html>
-      <head>
-        <title>WL La Piña RP</title>
-        <link rel="stylesheet" href="/style.css">
-      </head>
-      <body>
-        <div class="card" id="formulario" data-discordid="${discordId}">
-          <img src="/logo.png" class="logo">
-          <h1>WL Formulario - ${username}</h1>
-          <div id="timer">Tiempo restante: 15:00</div>
-          <div id="form-container">
-            <button class="btn" id="startBtn">Comenzar</button>
-          </div>
-        </div>
-        <script src="/script.js"></script>
-      </body>
-      </html>
-    `);
-
-  }catch(err){
+    // Guardar ID en sesión (frontend usa sessionStorage)
+    res.sendFile(__dirname + '/form.html');
+  } catch(err){
     console.error(err);
     res.send("❌ Error interno");
   }
@@ -131,25 +82,21 @@ app.get('/callback', async (req,res)=>{
 
 // --- Endpoint WL ---
 app.post('/wl-form', async (req,res)=>{
-  try{
+  try {
     const { discordId, respuestas } = req.body;
-    if(!discordId || !respuestas) return res.status(400).json({ error:'Faltan datos' });
+    if(!discordId || !respuestas) return res.status(400).json({error:'Faltan datos'});
 
     const wlChannel = await client.channels.fetch(WL_CHANNEL_ID);
     const resultChannel = await client.channels.fetch(RESULT_CHANNEL_ID);
-    const guild = await client.guilds.fetch(GUILD_ID);
-    const member = await guild.members.fetch(discordId);
 
-    // Guardar estado temporal
-    usuariosWL[discordId] = { estado: 'pendiente', respuestas };
-
-    // Mención fuera del embed
+    // Mención directa
     await wlChannel.send(`<@${discordId}> envió su WL:`);
 
     const embed = new EmbedBuilder()
       .setTitle('📄 Nueva WL enviada')
-      .setDescription(respuestas.map((r,i)=>`\n**${i+1}.** ${r}`).join(''))
-      .setColor('#FFD700');
+      .setDescription(respuestas.map((r,i)=>`**Pregunta ${i+1}:** ${r}`).join('\n'))
+      .setColor('#FFD700')
+      .setThumbnail('https://i.imgur.com/tuLogo.png'); // Cambia al logo que quieras
 
     const row = new ActionRowBuilder()
       .addComponents(
@@ -158,18 +105,20 @@ app.post('/wl-form', async (req,res)=>{
       );
 
     await wlChannel.send({ embeds:[embed], components:[row] });
-    res.json({ status:'ok' });
-  }catch(err){
+    res.json({status:'ok'});
+  } catch(err){
     console.error(err);
-    res.status(500).json({ error:'Error interno' });
+    res.status(500).json({error:'Error interno'});
   }
 });
 
-// --- Bot botones ---
-client.on(Events.InteractionCreate, async i=>{
-  if(!i.isButton()) return;
+// --- Bot Discord ---
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages] });
 
-  const [action, discordId] = i.customId.split('_');
+client.on(Events.InteractionCreate, async interaction=>{
+  if(!interaction.isButton()) return;
+
+  const [action, discordId] = interaction.customId.split('_');
   const guild = await client.guilds.fetch(GUILD_ID);
   const member = await guild.members.fetch(discordId).catch(()=>null);
   if(!member) return;
@@ -178,15 +127,13 @@ client.on(Events.InteractionCreate, async i=>{
 
   if(action==='accept'){
     await member.roles.add(ROLE_ACCEPTED).catch(()=>null);
-    usuariosWL[discordId].estado = 'aceptado';
   } else if(action==='reject'){
     await member.roles.add(ROLE_REJECTED).catch(()=>null);
-    usuariosWL[discordId].estado = 'rechazado';
   }
 
   const embed = new EmbedBuilder()
     .setTitle(action==='accept'?'✅ WL Aceptada':'❌ WL Rechazada')
-    .setDescription(`<@${discordId}> fue ${action==='accept'?'aceptado':'rechazado'} a La Piña RP!`)
+    .setDescription(`<@${discordId}> ${action==='accept'?'fue aceptado':'fue rechazado'} a La Piña RP!`)
     .setColor(action==='accept'?'#00FF00':'#FF0000')
     .setImage(
       action==='accept'
@@ -194,9 +141,10 @@ client.on(Events.InteractionCreate, async i=>{
       : 'https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExd2VveW9waW94OGFicmcyeGZzZDZ1cG4zb3Y5eXh2OTFyMTE3OGZuNiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/bGtF6Y5QRjmvjqamoL/giphy.gif'
     );
 
+  // Enviar DM
   member.send({ embeds:[embed] }).catch(()=>null);
   await resultChannel.send({ embeds:[embed] });
-  await i.update({ content: action==='accept'?'✅ WL aceptada':'❌ WL rechazada', components:[], embeds:i.message.embeds });
+  await interaction.update({ content: action==='accept'?'✅ WL aceptada':'❌ WL rechazada', components:[], embeds:interaction.message.embeds });
 });
 
 client.on('ready', ()=>console.log(`Bot listo! ${client.user.tag}`));
