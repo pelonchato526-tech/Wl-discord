@@ -1,17 +1,16 @@
 {
-  "name": "wl-lapinarp",
+  "name": "wl-discord",
   "version": "1.0.0",
-  "description": "Whitelist Discord La Piña RP",
-  "main": "index.js",
-  "type": "commonjs",
-  "scripts": {
-    "start": "node index.js"
-  },
+  "type": "module",
   "engines": {
     "node": "22.x"
   },
+  "scripts": {
+    "start": "node index.js"
+  },
   "dependencies": {
+    "discord.js": "^14.15.3",
     "express": "^4.19.2",
-    "discord.js": "^14.16.3"
+    "node-fetch": "^3.3.2"
   }
 }
