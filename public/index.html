@@ -1,42 +1,18 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Whitelist | La Piña RP</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="/style.css">
+  <meta charset="UTF-8" />
+  <title>La Piña RP | WL</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-
-<div class="card" id="card">
-  <img src="/logo.png" class="logo">
-  
-  <h1>Whitelist La Piña RP</h1>
-  <p id="instructions">
-    Tenés tiempo limitado para responder.<br>
-    Cambiar de pestaña cancelará el intento.<br>
-    Máximo 3 intentos.
-  </p>
-
-  <div id="timer">Tiempo: <span id="time">300</span>s</div>
-
-  <div class="progress">
-    <div class="bar" id="bar"></div>
+  <div class="card">
+    <img src="logo.png" class="logo" />
+    <h1>Whitelist La Piña RP</h1>
+    <p>Tenés 3 intentos. Cambiar de pestaña cancela.</p>
+    <a href="https://discord.com/oauth2/authorize?client_id=1453271207490355284&response_type=code&redirect_uri=https%3A%2F%2Fwl-discord.onrender.com%2Fcallback&scope=identify">
+      <button>Conectar y comenzar</button>
+    </a>
   </div>
-
-  <button id="start">Comenzar</button>
-
-  <form id="form" hidden>
-    <input type="text" placeholder="Nombre IC" required>
-    <textarea placeholder="¿Por qué querés entrar?" required></textarea>
-    <button type="submit">Enviar</button>
-  </form>
-</div>
-
-<footer>
-  © La Piña RP — Todos los derechos reservados
-</footer>
-
-<script src="/script.js"></script>
 </body>
 </html>
